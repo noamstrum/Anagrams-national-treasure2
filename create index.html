@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Unlimited Treasure Solver</title>
+    <style>
+        body { background: #050505; color: #00ff41; font-family: monospace; padding: 15px; }
+        .container { max-width: 500px; margin: auto; border: 2px solid #d4af37; padding: 15px; }
+        input { width: 90%; padding: 15px; background: #000; border: 1px solid #00ff41; color: #00ff41; font-size: 1.2rem; margin-bottom: 10px; }
+        button { width: 95%; padding: 15px; background: #d4af37; color: #000; font-weight: bold; border: none; cursor: pointer; }
+        #status { color: #d4af37; margin: 10px 0; font-size: 0.8rem; }
+        #output { height: 400px; overflow-y: scroll; background: #000; border: 1px solid #222; padding: 10px; font-size: 1rem; white-space: pre-wrap; }
+        .match { color: #fff; font-weight: bold; background: #114411; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2 style="color:#d4af37; text-align:center;">UNLIMITED DECIPHER</h2>
+    <input type="text" id="letters" placeholder="ENTER ANY LENGTH..." autocomplete="off">
+    <button id="btn" onclick="startSolving()">START BRUTE FORCE</button>
+    
+    <div id="status">Status: Waiting for input...</div>
+    <div id="output"></div>
+</div>
+
+<script>
+let dictionary = new Set();
+fetch('https://raw.githubusercontent.com/dwyl/english-words/master/words_alpha.txt')
+    .then(r => r.text())
+    .then(t => {
+        t.split('\n').forEach(w => dictionary.add(w.trim().toLowerCase()));
+        document.getElementById('status').innerText = "Status: Dictionary Loaded. Ready.";
+    });
+
+let stop = false;
+
+async function startSolving() {
+    const input = document.getElementById('letters').value.toLowerCase().replace(/[^a-z]/g, '');
+    const output = document.getElementById('output');
+    const status = document.getElementById('status');
+    const btn = document.getElementById('btn');
+
+    if (input.length > 10) {
+        if (!confirm("Warning: More than 10 letters will take a VERY long time. Continue?")) return;
+    }
+
+    output.innerHTML = "";
+    btn.innerText = "STOP SOLVER";
+    btn.onclick = () => { stop = true; };
+    stop = false;
+
+    let count = 0;
+    let found = 0;
+
+    // Heap's Algorithm converted to an Async Generator
+    async function* permute(n, heapArr) {
+        if (stop) return;
+        if (n === 1) {
+            yield heapArr.join('');
+            return;
+        }
+        for (let i = 0; i < n; i++) {
+            yield* permute(n - 1, heapArr);
+            if (n % 2 === 0) [heapArr[i], heapArr[n - 1]] = [heapArr[n - 1], heapArr[i]];
+            else [heapArr[0], heapArr[n - 1]] = [heapArr[n - 1], heapArr[0]];
+        }
+    }
+
+    for await (let p of permute(input.length, input.split(''))) {
+        count++;
+        if (dictionary.has(p)) {
+            found++;
+            output.innerHTML = `<span class="match">[MATCH] ${p.toUpperCase()}</span>\n` + output.innerHTML;
+        } else if (count % 100 === 0) {
+            // Only show a few "raw" ones so the screen doesn't fill with junk
+            status.innerText = `Checked: ${count} | Found: ${found}`;
+        }
+        
+        // This "sleep" prevents the phone from freezing
+        if (count % 500 === 0) await new Promise(r => setTimeout(r, 0));
+    }
+
+    status.innerText = `COMPLETE. Total checked: ${count} | Found: ${found}`;
+    btn.innerText = "START BRUTE FORCE";
+    btn.onclick = startSolving;
+}
+</script>
+
+</body>
+</html>
